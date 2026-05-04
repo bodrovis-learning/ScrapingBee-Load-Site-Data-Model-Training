@@ -1,58 +1,91 @@
+import csv
+from pathlib import Path
+
 import requests
 from bs4 import BeautifulSoup as Soup
-import os
-import csv
+
+from typing import Final
 
 # Constants for the attributes to be extracted from the sitemap.
-ATTRS = ["loc", "lastmod", "priority"]
+ATTRS: Final[tuple[str, ...]] = ("loc", "lastmod", "priority")
 
-
-def parse_sitemap(url, csv_filename="urls.csv"):
+def parse_sitemap(
+    url: str,
+    csv_filename: str = "urls.csv",
+    visited: set[str] | None = None,
+) -> bool:
     """Parse the sitemap at the given URL and append the data to a CSV file."""
-    # Return False if the URL is not provided.
     if not url:
+        print("No sitemap URL provided.")
         return False
 
-    # Attempt to get the content from the URL.
-    response = requests.get(url)
-    # Return False if the response status code is not 200 (OK).
-    if response.status_code != 200:
+    if visited is None:
+        visited = set()
+
+    url = url.strip()
+
+    # Avoid processing the same sitemap more than once.
+    if url in visited:
+        return True
+
+    visited.add(url)
+
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        print(f"Failed to fetch sitemap {url}: {e}")
         return False
 
-    # Parse the XML content of the response.
     soup = Soup(response.content, "xml")
+
+    success = True
 
     # Recursively parse nested sitemaps.
     for sitemap in soup.find_all("sitemap"):
-        loc = sitemap.find("loc").text
-        parse_sitemap(loc, csv_filename)
+        loc = sitemap.find("loc")
 
-    # Define the root directory for saving the CSV file.
-    root = os.path.dirname(os.path.abspath(__file__))
+        if loc and loc.text:
+            success = parse_sitemap(
+                loc.text.strip(),
+                csv_filename,
+                visited,
+            ) and success
 
     # Find all URL entries in the sitemap.
     urls = soup.find_all("url")
 
-    rows = []
-    for url in urls:
+    rows: list[list[str]] = []
+    for url_entry in urls:
         row = []
+
         for attr in ATTRS:
-            found_attr = url.find(attr)
-            # Use "n/a" if the attribute is not found, otherwise get its text.
-            row.append(found_attr.text if found_attr else "n/a")
+            found_attr = url_entry.find(attr)
+            row.append(found_attr.text.strip() if found_attr else "n/a")
+
         rows.append(row)
 
-    # Check if the file already exists
-    file_exists = os.path.isfile(os.path.join(root, csv_filename))
+    if not rows:
+        return success
 
-    # Append the data to the CSV file.
-    with open(os.path.join(root, csv_filename), "a+", newline="") as csvfile:
-        writer = csv.writer(csvfile)
-        # Write the header only if the file doesn't exist
-        if not file_exists:
-            writer.writerow(ATTRS)
-        writer.writerows(rows)
+    # Save the CSV file in the same directory as the script.
+    csv_path = Path(__file__).resolve().parent / csv_filename
+    file_exists = csv_path.exists()
+
+    try:
+        with csv_path.open("a", newline="", encoding="utf-8") as csvfile:
+            writer = csv.writer(csvfile)
+
+            if not file_exists:
+                writer.writerow(ATTRS)
+
+            writer.writerows(rows)
+    except OSError as e:
+        print(f"Failed to write sitemap data to {csv_path}: {e}")
+        return False
+
+    return success
 
 
-# Example usage
-parse_sitemap("https://yoursite/sitemap.xml")
+if __name__ == "__main__":
+    parse_sitemap("https://bodrovis.tech/sitemap.xml")

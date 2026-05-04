@@ -1,20 +1,14 @@
-[tool.poetry]
-name = "train-model"
+[project]
+name = "scrapingbee-load-site-data-model-training"
 version = "0.1.0"
-description = ""
-authors = ["bodrovis <bodrovis@protonmail.com>"]
+description = "Add your description here"
 readme = "README.md"
-
-[tool.poetry.dependencies]
-python = "^3.12"
-beautifulsoup4 = "^4.12"
-requests = "^2.31"
-lxml = "^5.1"
-scrapingbee = "^2.0"
-black = "^24.4.2"
-pandas = "^2.2.2"
-tenacity= "^8.4.1"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4>=4.14.3",
+    "lxml>=6.1.0",
+    "pandas>=3.0.2",
+    "requests>=2.33.1",
+    "scrapingbee>=2.0.2",
+    "tenacity>=9.1.4",
+]
